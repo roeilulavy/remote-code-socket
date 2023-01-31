@@ -1,32 +1,88 @@
 const express = require("express");
-const socket = require("socket.io");
+const app = express();
+const http = require("http");
+const { Server } = require("socket.io");
+const cors = require("cors");
+const session = require("express-session");
 
 // App setup
-const PORT = 3000;
-const app = express();
-const server = app.listen(PORT, function () {
-  console.log(`Listening on port ${PORT}`);
-  console.log(`http://localhost:${PORT}`);
+app.use(cors());
+
+app.use(
+  session({
+    secret: "secret-key",
+    resave: false,
+    saveUninitialized: true,
+  })
+);
+
+const server = http.createServer(app);
+
+const io = new Server(server, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"],
+  },
 });
 
-// Static files
-app.use(express.static("public"));
+app.get("/", async (req, res) => {
+  try {
+    res.send("Server is up!");
+    console.log("Server is up!");
+  } catch (error) {
+    res.send(error);
+  }
+});
 
-// Socket setup
-const io = socket(server);
-const activeUsers = new Set();
+let activeUsers = [];
 
-io.on("connection", function (socket) {
-  console.log("Made socket connection");
+io.on("connection", (socket) => {
+  console.log("new socket connection: " + socket.id);
 
-  socket.on("new user", function (data) {
-    socket.userId = data;
-    activeUsers.add(data);
-    io.emit("new user", [...activeUsers]);
+  socket.on("new user", (sessionId, callback) => {
+    const searchActiveUser = activeUsers.find((item) => {
+      if (item.sessionId == sessionId) {
+        return true;
+      }
+    });
+
+    if (!searchActiveUser) {
+      if (activeUsers.length == 0) {
+        activeUsers.push({ sessionId, role: "mentor", socketId: socket.id });
+        console.log("new Mentor added!");
+      } else {
+        activeUsers.push({ sessionId, role: "student", socketId: socket.id });
+        console.log("new Student added!");
+      }
+    } else {
+      const objIndex = activeUsers.findIndex(
+        (obj) => obj.sessionId == sessionId
+      );
+
+      activeUsers[objIndex].socketId = socket.id;
+    }
+
+    callback({
+      activeUsers: activeUsers,
+    });
+  });
+
+  socket.on("code-update", (code) => {
+    socket.broadcast.emit("code-update", code.code);
   });
 
   socket.on("disconnect", () => {
-    activeUsers.delete(socket.userId);
-    io.emit("user disconnected", socket.userId);
+    let idToRemove = socket.id;
+
+    const filteredActiveUser = activeUsers.filter(
+      (item) => item.socketId !== idToRemove
+    );
+
+    activeUsers = filteredActiveUser;
   });
+});
+
+const port = process.env.port || 5000;
+server.listen(port, () => {
+  console.log("Server is running...");
 });
