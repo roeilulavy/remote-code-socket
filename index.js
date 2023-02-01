@@ -51,8 +51,20 @@ io.on("connection", (socket) => {
         activeUsers.push({ sessionId, role: "mentor", socketId: socket.id });
         console.log("new Mentor added!");
       } else {
-        activeUsers.push({ sessionId, role: "student", socketId: socket.id });
-        console.log("new Student added!");
+        //check if mentor is exist...
+        const checkForMentor = activeUsers.find((item) => {
+          if (item.role == "mentor") {
+            return true;
+          }
+        });
+
+        if (!checkForMentor) {
+          activeUsers.push({ sessionId, role: "mentor", socketId: socket.id });
+          console.log("new Mentor added!");
+        } else {
+          activeUsers.push({ sessionId, role: "student", socketId: socket.id });
+          console.log("new Student added!");
+        }
       }
     } else {
       const objIndex = activeUsers.findIndex(
