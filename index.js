@@ -1,13 +1,20 @@
 const express = require("express");
 const app = express();
-const http = require("https");
+const https = require("https");
 const { Server } = require("socket.io");
+const fs = require("fs");
 // const cors = require("cors");
 
 // App setup
 // app.use(cors());
+const port = 443;
 
-const server = http.createServer(app);
+const options = {
+  key: fs.readFileSync("path/to/private.key"),
+  cert: fs.readFileSync("path/to/certificate.crt"),
+};
+
+const server = https.createServer(options, app);
 
 const io = new Server(server, {
   cors: {
@@ -16,7 +23,15 @@ const io = new Server(server, {
   },
 });
 
-app.get("/", async (req, res) => {
+app.use((req, res, next) => {
+  if (req.secure) {
+    next();
+  } else {
+    res.redirect(`https://${req.headers.host}${req.url}`);
+  }
+});
+
+app.get("/", (req, res) => {
   try {
     res.send("Server is up!");
     console.log("Server is up!");
@@ -85,7 +100,7 @@ io.on("connection", (socket) => {
   });
 });
 
-const port = process.env.port || 3000;
+// const port = process.env.port || 3000;
 server.listen(port, () => {
   console.log("Server is running...");
 });
